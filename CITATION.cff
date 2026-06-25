@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "jstage-mcp: An MCP server for the J-STAGE WebAPI"
+abstract: >-
+  A FastMCP stdio server that exposes the J-STAGE WebAPI (Japan Science and
+  Technology Agency) as four tools for AI clients: article search, journal
+  issue listing, journal search, and DOI lookup. Returns bilingual
+  (English/Japanese) metadata and includes JST attribution in every response.
+authors:
+  - family-names: Gerteis
+    given-names: Christopher
+    affiliation: "SOAS University of London"
+    orcid: "https://orcid.org/0000-0003-4977-6152"
+version: 1.0.0
+date-released: 2026-06-25
+license: MIT
+repository-code: "https://github.com/ckgerteis/jstage-mcp"
+url: "https://www.christophergerteis.net"
+keywords:
+  - Model Context Protocol
+  - MCP
+  - J-STAGE
+  - Japanese studies
+  - East Asian studies
+  - digital humanities
+  - bibliographic search
+  - scholarly metadata
