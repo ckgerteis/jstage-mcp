@@ -39,6 +39,25 @@ DEFAULT_TIMEOUT = 30.0
 MIN_REQUEST_INTERVAL = 1.0  # seconds — be polite, JST forbids bulk downloads
 ATTRIBUTION = "Powered by J-STAGE (https://www.jstage.jst.go.jp/)"
 
+# J-STAGE returns a <result><status>/<message> block. Status "0" is success;
+# WARN_* codes are non-fatal advisories (results may still be present); other
+# non-zero codes are errors. The hints below are inferred from observed API
+# behaviour and translate the bare codes into actionable guidance, so that a
+# warning or error is never silently reported to the user as "nothing found".
+STATUS_HINTS = {
+    "WARN_002": (
+        "J-STAGE judged the query too broad to return a full result set. "
+        "Add a more specific term (a journal, author, or second keyword) to "
+        "narrow it. A truncated or empty result here does not mean the "
+        "literature is absent."
+    ),
+    "ERR_001": (
+        "J-STAGE returned no usable result for this query. The term may be "
+        "unmatched as written; try an alternative rendering, a component term, "
+        "or a broader keyword before concluding the literature is absent."
+    ),
+}
+
 NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "prism": "http://prismstandard.org/namespaces/basic/2.0/",
@@ -154,15 +173,28 @@ def _publisher(entry: ET.Element) -> dict[str, Any]:
     }
 
 
-def _check_status(root: ET.Element) -> None:
-    """Raise ValueError if the API returned an error status."""
+def _check_status(root: ET.Element) -> Optional[dict[str, Any]]:
+    """Inspect the API status block.
+
+    Returns None on success. For a WARN_* advisory, returns a non-fatal
+    {code, message, hint} dict so the caller can surface it alongside any
+    results. For an error status, raises ValueError carrying the code and an
+    actionable hint, so the code is never silently reduced to "nothing found".
+    """
     result = root.find("atom:result", NS)
     if result is None:
-        return
+        return None
     status = _text(result.find("atom:status", NS))
     message = _text(result.find("atom:message", NS))
-    if status and status != "0":
-        raise ValueError(f"J-STAGE API error {status}: {message or '(no message)'}")
+    if not status or status == "0":
+        return None
+    hint = STATUS_HINTS.get(status)
+    if status.startswith("WARN"):
+        return {"code": status, "message": message, "hint": hint}
+    detail = f"J-STAGE API {status}: {message or '(no message)'}"
+    if hint:
+        detail += f" — {hint}"
+    raise ValueError(detail)
 
 
 def _parse_meta(root: ET.Element) -> dict[str, Any]:
@@ -220,13 +252,20 @@ def _parse_feed(xml_text: str, kind: str) -> dict[str, Any]:
     `kind` is "article" or "volume" — selects the entry parser.
     """
     root = ET.fromstring(xml_text)
-    _check_status(root)
+    warning = _check_status(root)  # raises on error; returns a warning dict or None
     meta = _parse_meta(root)
     parser = _parse_article_entry if kind == "article" else _parse_volume_entry
     entries = [parser(e) for e in root.findall("atom:entry", NS)]
     # The API returns a single empty <entry/> on zero hits — strip those.
     entries = [e for e in entries if any(v for v in e.values() if v not in (None, {}, []))]
-    return {**meta, "entries": entries, "powered_by": ATTRIBUTION}
+    result = {**meta, "entries": entries, "powered_by": ATTRIBUTION}
+    if warning:
+        result["warning"] = warning["code"]
+        if warning.get("message"):
+            result["warning_message"] = warning["message"]
+        if warning.get("hint"):
+            result["hint"] = warning["hint"]
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -356,28 +395,26 @@ class GetArticleByDoiInput(_Base):
 # ---------------------------------------------------------------------------
 
 
-def _format_error(exc: Exception) -> str:
+def _format_error(exc: Exception, query: Optional[dict[str, Any]] = None) -> str:
+    base: dict[str, Any] = {"powered_by": ATTRIBUTION}
+    if query is not None:
+        base["query"] = query  # echo the issued query for reproducibility
     if isinstance(exc, httpx.HTTPStatusError):
-        return json.dumps(
+        base.update(
             {
                 "error": "http_error",
                 "status_code": exc.response.status_code,
                 "message": f"J-STAGE returned HTTP {exc.response.status_code}.",
-                "powered_by": ATTRIBUTION,
             }
         )
-    if isinstance(exc, httpx.TimeoutException):
-        return json.dumps(
-            {"error": "timeout", "message": "Request to J-STAGE timed out.",
-             "powered_by": ATTRIBUTION}
-        )
-    if isinstance(exc, ValueError):
-        return json.dumps(
-            {"error": "api_error", "message": str(exc), "powered_by": ATTRIBUTION}
-        )
-    return json.dumps(
-        {"error": type(exc).__name__, "message": str(exc), "powered_by": ATTRIBUTION}
-    )
+    elif isinstance(exc, httpx.TimeoutException):
+        base.update({"error": "timeout", "message": "Request to J-STAGE timed out."})
+    elif isinstance(exc, ValueError):
+        # Carries the translated status code and actionable hint from _check_status.
+        base.update({"error": "api_error", "message": str(exc)})
+    else:
+        base.update({"error": type(exc).__name__, "message": str(exc)})
+    return json.dumps(base, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------
@@ -415,22 +452,39 @@ async def jstage_search_articles(params: SearchArticlesInput) -> str:
 
     Returns up to `count` matching articles with bilingual (English/Japanese)
     titles, authors, journal metadata, DOI, volume/issue/pages, and
-    publication year. Combine fields freely; all are AND-ed by the API.
+    publication year. Separate parameters (text, article, author, ...) are
+    AND-ed by the API.
 
-    Pagination: pass `start` and `count`. Total hit count is returned in
-    `total_results`.
+    Matching logic, which the caller should weigh when reading the counts: the
+    `text` field is a broad full-text search, so several words placed in `text`
+    together are matched loosely and can return large, only loosely related
+    sets. J-STAGE matches differently from CiNii (which treats a multi-word
+    query as a metadata conjunction), so the same string can return very
+    different totals on the two platforms; the difference is a property of the
+    platforms, not of the literature.
+
+    Reading the result: a high `total_results` is often noisy and should be
+    narrowed; a `warning` field (e.g. WARN_002) means the query was too broad,
+    not that the literature is absent; an `error` with a `hint` should be acted
+    on by trying an alternative rendering or a component term. Before reporting
+    that nothing was found, try alternate Japanese renderings (literal, emic,
+    and combined) and tell the user which Japanese terms were searched.
+
+    Pagination: pass `start` and `count`. Total hit count is in `total_results`.
 
     Returns:
         JSON string with keys: total_results, start_index, items_per_page,
-        updated, entries (list of articles), powered_by.
+        updated, entries, powered_by, and (when present) query, warning, hint.
     """
     payload = params.model_dump(exclude_none=True)
     payload["service"] = 3
+    issued = {k: v for k, v in payload.items() if k != "service"}
     try:
         xml_text = await _get(payload)
         parsed = _parse_feed(xml_text, "article")
     except Exception as exc:  # noqa: BLE001
-        return _format_error(exc)
+        return _format_error(exc, query=issued)
+    parsed["query"] = issued  # echo the issued query for reproducibility
     return json.dumps(parsed, ensure_ascii=False, indent=2)
 
 

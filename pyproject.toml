@@ -1,6 +1,6 @@
 [project]
 name = "jstage-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP stdio server for the J-STAGE WebAPI (Japanese scholarly journals)."
 readme = "README.md"
 requires-python = ">=3.10"
