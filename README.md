@@ -2,7 +2,7 @@
 
 A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as three tools for use with Claude Desktop.
 
-> **v2 is a breaking change.** The record-retrieval tools now return one
+> The **v2** record-retrieval tools now return one
 > structured JSON *response envelope* (shared with
 > [cinii-mcp](https://github.com/ckgerteis/cinii-mcp)) instead of v1's ad-hoc
 > JSON. The envelope moves the interpretation keys — how a query was matched,
