@@ -1,5 +1,7 @@
 # jstage-mcp
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20999899.svg)](https://doi.org/10.5281/zenodo.20999899)
+
 A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as three tools for use with Claude Desktop.
 
 > The **v2** record-retrieval tools now return one
