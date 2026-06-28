@@ -30,7 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import mediation as M
 
-__version__ = "2.0.3"
+__version__ = "2.1.0"
 
 # ---------------------------------------------------------------------------
 # Constants
