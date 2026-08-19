@@ -1,4 +1,4 @@
-"""J-STAGE MCP server.
+"""J-STAGE MCP server (v2.0.0).
 
 A FastMCP stdio server exposing the J-STAGE WebAPI
 (https://api.jstage.jst.go.jp/searchapi/do) for searching Japanese
@@ -8,9 +8,11 @@ v2.0.0 — clean replacement of the response format. The record-retrieval tools
 (jstage_search_articles, jstage_get_article_by_doi) now emit the unified
 response envelope shared with cinii-mcp (see mediation.py / response-schema.json):
 typed query/script, matching_mode, graduated breadth, per-item matched_in, typed
-diagnostics, a loggable receipt, and the JST attribution. The navigation tools
-(jstage_list_issues, jstage_search_journals) return structural JSON; they are not
-literature retrieval and are out of envelope scope.
+diagnostics, a loggable receipt, and the JST attribution. The navigation tool
+jstage_list_issues returns structural JSON; it is not literature retrieval and is
+out of envelope scope. (v1 also exposed jstage_search_journals; it was removed in
+v2 and this note corrected on 19 Aug 2026, when the docstring was found still
+advertising it.)
 
 This is a breaking change from v1.x. J-STAGE attribution requirement: every
 response carries the JST acknowledgment.
@@ -25,12 +27,16 @@ from typing import Any, Optional
 from xml.etree import ElementTree as ET
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+try:  # mcp SDK 1.x
+    from mcp.server.fastmcp import FastMCP as _MCPServer
+except ModuleNotFoundError:  # mcp SDK 2.x removed mcp.server.fastmcp
+    from mcp.server.mcpserver import MCPServer as _MCPServer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+import ledger
 import mediation as M
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -343,7 +349,7 @@ class GetArticleByDoiInput(_Base):
 # Server + tools
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP("jstage_mcp")
+mcp = _MCPServer("jstage_mcp")
 
 
 @mcp.tool(
@@ -393,7 +399,7 @@ async def jstage_search_articles(params: SearchArticlesInput) -> str:
         attribution=ATTRIBUTION,
         coverage_note=coverage,
     )
-    return M.dumps(env)
+    return M.emit(env)
 
 
 @mcp.tool(
@@ -423,7 +429,7 @@ async def jstage_get_article_by_doi(params: GetArticleByDoiInput) -> str:
                 f"Resolve via https://doi.org/{doi}.")],
             attribution=ATTRIBUTION,
         )
-        return M.dumps(env)
+        return M.emit(env)
 
     try:
         xml_text = await _get({"service": 3, "cdjournal": match.group("cdjournal"), "vol": match.group("vol"), "count": 100})
@@ -449,7 +455,7 @@ async def jstage_get_article_by_doi(params: GetArticleByDoiInput) -> str:
         params=issued, matching_mode=MATCHING_MODE, total=total, start=1,
         items=env_items, diagnostics=diags, attribution=ATTRIBUTION,
     )
-    return M.dumps(env)
+    return M.emit(env)
 
 
 # --- Navigation tools (structural JSON; out of envelope scope) --------------
@@ -492,8 +498,18 @@ async def jstage_list_issues(params: ListIssuesInput) -> str:
         if warning:
             out["warning"] = warning["code"]
             out["hint"] = warning.get("hint")
+        ledger.record_request(
+            server="jstage", operation="list_issues", endpoint=API_BASE,
+            params={k: v for k, v in api_params.items() if k != "service"},
+            response={"total": meta["total"], "results": vols},
+        )
         return json.dumps(out, ensure_ascii=False, indent=2)
     except Exception as exc:  # noqa: BLE001
+        ledger.record_request(
+            server="jstage", operation="list_issues", endpoint=API_BASE,
+            params={k: v for k, v in api_params.items() if k != "service"},
+            error=str(exc)[:300],
+        )
         return json.dumps({"error": str(exc), "powered_by": ATTRIBUTION}, ensure_ascii=False, indent=2)
 
 
