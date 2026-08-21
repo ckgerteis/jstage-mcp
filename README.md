@@ -11,7 +11,50 @@ A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.j
 | `jstage_search_journals` | Find journals by title / ISSN / publisher (see *Limitations*) |
 | `jstage_get_article_by_doi` | Resolve a J-STAGE DOI to its full article record |
 
-All tools return JSON with bilingual (English / Japanese) titles, authors, and journal names where J-STAGE provides them. Every response includes a `powered_by` field per the JST attribution requirement.
+All tools return one typed JSON response envelope with bilingual (English / Japanese) titles, authors, and journal names where J-STAGE provides them — see [Response format](#response-format) below. The JST attribution requirement is met by the envelope's `attribution` field, present in every response.
+
+## Response format
+
+Every tool returns one JSON response envelope, built by `mediation.py` and defined in [`response-schema.json`](response-schema.json). Schema version 2.2.0. The same module and schema are vendored byte-identically across the server family, so an envelope from one server can be read by a consumer written for another.
+
+The envelope reports how the search was made, not only what it found:
+
+- **`searched_for`** — on search operations, the term actually sent, its detected script, and the matching mode, hoisted to the top of the envelope so a relaying client cannot drop it. Fetch operations (`jstage_get_article_by_doi`, `jstage_list_issues`) omit it: they were handed an identifier and chose no term.
+- **`query`** — `input_terms` as supplied, `normalized` as sent, and the detected `script`. This pair is the record of any rendering performed between the caller's language and the corpus.
+- **`matching_mode`** — `full_text_broad` for this server. It tells you how to read `result.total`.
+- **`result.breadth`** — `none`, `narrow` (1–50), `broad` (51–1000), `very_broad` (>1000). Thresholds are low on purpose: a few hundred hits that look like a literature are marked rather than passed through clean.
+- **`items[].matched_in`** — which field the match was made in, per record.
+- **`receipt`** — an ISO 8601 timestamp, a SHA-256 taken over the normalised query and its parameters, and the identifiers returned. The hash verifies a term you already hold; it cannot be inverted to produce one, so the unit of deposit is the envelope, not the receipt.
+- **`attribution`** — the required credit line, in every response.
+
+### Diagnostic codes
+
+Typed and closed. A diagnostic is never prose the client has to parse.
+
+| Code | Level | Meaning |
+| --- | --- | --- |
+| `OK` | info | Records returned; nothing to flag. |
+| `BROAD_FULLTEXT` | warning | The match was made on full text, where multi-word terms are matched loosely, so a high `result.total` is often noisy. |
+| `SCRIPT_LATIN_QUERY` | warning | The query was Latin-script, so it matched romanised and English metadata only. Re-issue in kanji or kana. |
+| `LITERAL_COMPOUND_EMPTY` | warning | No records for this rendering. Try an emic or component term, or an alternative Japanese rendering. |
+| `API_ERROR` | error | The API answered, and answered with an error. |
+| `TRANSPORT_ERROR` | error | The request did not complete. Kept distinct from `API_ERROR` because a failed search has an unknown result and must never be written up as an absence. |
+
+### Query receipts
+
+Every envelope can be deposited to an append-only, hash-chained JSONL log by `ledger.py`. It is **off unless `MCP_RECEIPT_LOG` is set**, and a logging failure is swallowed rather than raised — a search matters more than the record of it. Secrets are redacted before a line is composed.
+
+```
+MCP_RECEIPT_LOG=C:\path\to\receipts.jsonl
+MCP_RECEIPT_SESSION=project-or-article-slug
+MCP_RECEIPT_STRICT=1        # optional: make logging failure raise
+```
+
+Verify a deposited log's hash chain:
+
+```bash
+python ledger.py verify receipts.jsonl
+```
 
 ## Install (Windows, alongside CiNii / OpenAlex / Semantic Scholar)
 
