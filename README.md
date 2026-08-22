@@ -2,6 +2,14 @@
 
 A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as four tools for use with Claude Desktop.
 
+## What this is for
+
+J-STAGE holds the full text of journals published by Japanese learned societies, and this searches inside the articles rather than across a catalogue. A term that no cataloguer chose as a keyword is still findable if an author used it in an argument, which makes this the route for concepts that circulate before they are named.
+
+Resolve a J-STAGE DOI straight to its record, or walk a journal's volume and issue spine to see a run whole.
+
+Run a term here and on [`cinii-mcp`](https://github.com/ckgerteis/cinii-mcp) and read the gap: a wide divergence tells you whether your vocabulary belongs to catalogue description or to the prose of the field, which is a finding about the literature before it is a finding in it.
+
 ## Tools
 
 | Tool | Purpose |
