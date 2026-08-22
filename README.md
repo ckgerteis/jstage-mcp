@@ -2,6 +2,14 @@
 
 A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as four tools for use with Claude Desktop.
 
+## What this is for
+
+J-STAGE holds the full text of journals published by Japanese learned societies, and this searches inside the articles rather than across a catalogue. A term that no cataloguer chose as a keyword is still findable if an author used it in an argument, which makes this the route for concepts that circulate before they are named.
+
+Resolve a J-STAGE DOI straight to its record, or walk a journal's volume and issue spine to see a run whole.
+
+Run a term here and on [`cinii-mcp`](https://github.com/ckgerteis/cinii-mcp) and read the gap: a wide divergence tells you whether your vocabulary belongs to catalogue description or to the prose of the field, which is a finding about the literature before it is a finding in it.
+
 ## Tools
 
 | Tool | Purpose |
@@ -15,7 +23,7 @@ All tools return one typed JSON response envelope with bilingual (English / Japa
 
 ## Response format
 
-Every tool returns one JSON response envelope, built by `mediation.py` and defined in [`response-schema.json`](response-schema.json). Schema version 2.2.0. The same module and schema are vendored byte-identically across the server family, so an envelope from one server can be read by a consumer written for another.
+Every tool returns one JSON response envelope, built by `mediation.py` and defined in [`response-schema.json`](response-schema.json). Schema version 2.3.0. The same module and schema are vendored byte-identically across the server family, so an envelope from one server can be read by a consumer written for another.
 
 The envelope reports how the search was made, not only what it found:
 
@@ -39,10 +47,14 @@ Typed and closed. A diagnostic is never prose the client has to parse.
 | `LITERAL_COMPOUND_EMPTY` | warning | No records for this rendering. Try an emic or component term, or an alternative Japanese rendering. |
 | `API_ERROR` | error | The API answered, and answered with an error. |
 | `TRANSPORT_ERROR` | error | The request did not complete. Kept distinct from `API_ERROR` because a failed search has an unknown result and must never be written up as an absence. |
+| `RECEIPT_NOT_DEPOSITED` | info | The response was not written to the query ledger, because `MCP_RECEIPT_LOG` is unset. The search is unaffected; no receipt survives it. |
+| `RECEIPT_WRITE_FAILED` | warning | `MCP_RECEIPT_LOG` is set, the write was attempted, and it did not land. Distinct from the line above because one is a choice and the other is a fault. |
 
 ### Query receipts
 
 Every envelope can be deposited to an append-only, hash-chained JSONL log by `ledger.py`. It is **off unless `MCP_RECEIPT_LOG` is set**, and a logging failure is swallowed rather than raised — a search matters more than the record of it. Secrets are redacted before a line is composed.
+
+Since schema 2.3.0 the envelope says so. When a response is not deposited, `emit()` appends `RECEIPT_NOT_DEPOSITED` if the variable is unset, or `RECEIPT_WRITE_FAILED` if it is set and the write did not land. The gap is then visible in the artefact that becomes the record, rather than only in a configuration file. `mediation.deposit_enabled()` reports the same fact on demand.
 
 ```
 MCP_RECEIPT_LOG=C:\path\to\receipts.jsonl

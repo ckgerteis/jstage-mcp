@@ -36,7 +36,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 import ledger
 import mediation as M
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 # ---------------------------------------------------------------------------
 # Constants
