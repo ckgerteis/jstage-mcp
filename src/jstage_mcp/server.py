@@ -33,10 +33,10 @@ except ModuleNotFoundError:  # mcp SDK 2.x removed mcp.server.fastmcp
     from mcp.server.mcpserver import MCPServer as _MCPServer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-import ledger
-import mediation as M
+from . import ledger
+from . import mediation as M
 
-__version__ = "2.3.0"
+__version__ = "3.0.0"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -513,5 +513,10 @@ async def jstage_list_issues(params: ListIssuesInput) -> str:
         return json.dumps({"error": str(exc), "powered_by": ATTRIBUTION}, ensure_ascii=False, indent=2)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point (`jstage-mcp`)."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
