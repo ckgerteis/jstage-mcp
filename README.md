@@ -1,6 +1,6 @@
 # jstage-mcp
 
-A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as four tools for use with Claude Desktop.
+A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as three tools for use with Claude Desktop.
 
 ## What this is for
 
@@ -16,7 +16,6 @@ Run a term here and on [`cinii-mcp`](https://github.com/ckgerteis/cinii-mcp) and
 | --- | --- |
 | `jstage_search_articles` | Full-text / author / title / journal search across J-STAGE articles |
 | `jstage_list_issues` | Volume & issue spine for a known title, ISSN, or `cdjournal` |
-| `jstage_search_journals` | Find journals by title / ISSN / publisher (see *Limitations*) |
 | `jstage_get_article_by_doi` | Resolve a J-STAGE DOI to its full article record |
 
 All tools return one typed JSON response envelope with bilingual (English / Japanese) titles, authors, and journal names where J-STAGE provides them — see [Response format](#response-format) below. The JST attribution requirement is met by the envelope's `attribution` field, present in every response.
@@ -65,42 +64,66 @@ MCP_RECEIPT_STRICT=1        # optional: make logging failure raise
 Verify a deposited log's hash chain:
 
 ```bash
-python ledger.py verify receipts.jsonl
+jstage-mcp-ledger verify receipts.jsonl
 ```
 
-## Install (Windows, alongside CiNii / OpenAlex / Semantic Scholar)
+## Install
 
-The server is single-file and has only three runtime dependencies. Use a dedicated virtual environment so it doesn't collide with other MCP stacks.
+The package installs a `jstage-mcp` console script. It is namespaced, so it can
+share one environment with the rest of this server family.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install .
+```
+
+On Windows:
 
 ```powershell
-# from the directory containing server.py
 py -3.11 -m venv .venv
-.venv\Scripts\activate
-pip install -e .
+.venv\Scripts\pip.exe install .
 ```
 
-Verify the server boots:
+Or straight from the repository, without cloning:
 
-```powershell
-.venv\Scripts\python.exe server.py --help
+```bash
+uvx --from "git+https://github.com/ckgerteis/jstage-mcp" jstage-mcp
 ```
+
+Verify the install:
+
+```bash
+.venv/bin/python -c "import jstage_mcp; print(jstage_mcp.__version__)"
+```
+
+That fails loudly if the package or one of its vendored modules is missing. Do
+not use `jstage-mcp --help` as the check: unknown arguments are ignored, the
+server starts, reads end-of-input and exits 0, so it reports success whatever
+the state of the code.
 
 ## Claude Desktop configuration
 
-Add an entry to `%APPDATA%\Claude\claude_desktop_config.json` under `mcpServers`. Adjust the absolute paths to match your install location.
+Add an entry to `%APPDATA%\Claude\claude_desktop_config.json` under
+`mcpServers`, pointing at the console script in the environment you installed
+into. On macOS or Linux use the absolute path to `.venv/bin/jstage-mcp`.
 
 ```json
 {
   "mcpServers": {
     "jstage": {
-      "command": "C:\\path\\to\\jstage-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["C:\\path\\to\\jstage-mcp\\server.py"]
+      "command": "C:\\path\\to\\.venv\\Scripts\\jstage-mcp.exe"
     }
   }
 }
 ```
 
-Restart Claude Desktop. The four tools should appear under "jstage" in the tool list.
+**Changed in 3.0.0.** Earlier versions were registered by path —
+`"command": "…\\python.exe", "args": ["…\\server.py"]`. That entry will not
+start this version, because `server.py` is now a module inside a package rather
+than a script beside its imports. Replace it with the console script above.
+
+Restart Claude Desktop. The three tools should appear under "jstage" in the
+tool list.
 
 ## Rate limiting
 
@@ -108,7 +131,7 @@ The server enforces a one-second minimum interval between outbound requests in l
 
 ## Limitations
 
-- **`jstage_search_journals` runs against a fallback.** J-STAGE announced a journal-search endpoint (`service=4`) on 26 March 2026, but the public API currently rejects that service code with `ERR_004`. The tool probes `service=4` first and, on failure, falls back to `service=2` (volume search) with results deduplicated by journal. When JST activates `service=4`, the tool will use it natively without a contract change.
+- **There is no journal-search tool.** `jstage_search_journals` existed in v1.x and was removed in v2.0.0. J-STAGE announced a journal-search endpoint (`service=4`) on 26 March 2026 and the public API still rejects that service code with `ERR_004`; a tool that silently falls back to volume search is not a journal search, and this server would rather not offer one. Until JST activates `service=4`, use `jstage_list_issues` against a known title, ISSN or `cdjournal`.
 - **`jstage_get_article_by_doi` requires J-STAGE-issued DOIs.** The WebAPI does not expose a `doi=` query parameter. The tool decomposes DOIs that follow J-STAGE's pattern (`10.<registrant>/<cdjournal>.<vol>.<no>_<page>`) into `cdjournal+vol` and matches the result against the response. For DOIs outside that pattern the tool returns the doi.org resolution URL with a note.
 - **Commercial use requires registration.** Per the JST Terms of Use, commercial use needs an application form sent to `contact@jstage.jst.go.jp`. Research and teaching use does not.
 
@@ -119,7 +142,7 @@ Endpoint: `https://api.jstage.jst.go.jp/searchapi/do`
 Service codes used:
 - `service=2` — Volumes/issues
 - `service=3` — Article search
-- `service=4` — Journal search (documented, not yet live)
+- `service=4` — Journal search (documented, rejected with `ERR_004` as of 23 August 2026; not used by any tool)
 
 Valid article-search query parameters confirmed against the live API:
 `material, article, author, affil, keyword, abst, text, issn, cdjournal, vol, no, pubyearfrom, pubyearto, start, count`.
