@@ -33,10 +33,10 @@ except ModuleNotFoundError:  # mcp SDK 2.x removed mcp.server.fastmcp
     from mcp.server.mcpserver import MCPServer as _MCPServer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-import ledger
-import mediation as M
+from . import ledger
+from . import mediation as M
 
-__version__ = "2.3.0"
+__version__ = "3.0.0"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -349,7 +349,13 @@ class GetArticleByDoiInput(_Base):
 # Server + tools
 # ---------------------------------------------------------------------------
 
-mcp = _MCPServer("jstage_mcp")
+# mcp 1.x's FastMCP takes no `version`; 2.x's MCPServer does. Passed where it is
+# accepted, because a server that answers `initialize` with an empty version
+# string cannot be cited by the disclosure that has to name the build it ran.
+try:
+    mcp = _MCPServer("jstage_mcp", version=__version__)
+except TypeError:  # mcp SDK 1.x
+    mcp = _MCPServer("jstage_mcp")
 
 
 @mcp.tool(
@@ -513,5 +519,10 @@ async def jstage_list_issues(params: ListIssuesInput) -> str:
         return json.dumps({"error": str(exc), "powered_by": ATTRIBUTION}, ensure_ascii=False, indent=2)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point (`jstage-mcp`)."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

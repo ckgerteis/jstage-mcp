@@ -1,6 +1,6 @@
 # jstage-mcp
 
-A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as four tools for use with Claude Desktop.
+A FastMCP stdio server exposing the [J-STAGE WebAPI](https://www.jstage.jst.go.jp/static/pages/JstageServices/TAB3/-char/en) as three tools for use with Claude Desktop.
 
 ## What this is for
 
@@ -16,7 +16,6 @@ Run a term here and on [`cinii-mcp`](https://github.com/ckgerteis/cinii-mcp) and
 | --- | --- |
 | `jstage_search_articles` | Full-text / author / title / journal search across J-STAGE articles |
 | `jstage_list_issues` | Volume & issue spine for a known title, ISSN, or `cdjournal` |
-| `jstage_search_journals` | Find journals by title / ISSN / publisher (see *Limitations*) |
 | `jstage_get_article_by_doi` | Resolve a J-STAGE DOI to its full article record |
 
 All tools return one typed JSON response envelope with bilingual (English / Japanese) titles, authors, and journal names where J-STAGE provides them — see [Response format](#response-format) below. The JST attribution requirement is met by the envelope's `attribution` field, present in every response.
@@ -47,60 +46,132 @@ Typed and closed. A diagnostic is never prose the client has to parse.
 | `LITERAL_COMPOUND_EMPTY` | warning | No records for this rendering. Try an emic or component term, or an alternative Japanese rendering. |
 | `API_ERROR` | error | The API answered, and answered with an error. |
 | `TRANSPORT_ERROR` | error | The request did not complete. Kept distinct from `API_ERROR` because a failed search has an unknown result and must never be written up as an absence. |
-| `RECEIPT_NOT_DEPOSITED` | info | The response was not written to the query ledger, because `MCP_RECEIPT_LOG` is unset. The search is unaffected; no receipt survives it. |
-| `RECEIPT_WRITE_FAILED` | warning | `MCP_RECEIPT_LOG` is set, the write was attempted, and it did not land. Distinct from the line above because one is a choice and the other is a fault. |
+| `RECEIPT_NOT_DEPOSITED` | info | The response was not written to the query ledger, because no receipts destination is configured. The search is unaffected; no receipt survives it. |
+| `RECEIPT_WRITE_FAILED` | warning | A receipts destination is set, the write was attempted, and it did not land. Distinct from the line above because one is a choice and the other is a fault. |
 
 ### Query receipts
 
-Every envelope can be deposited to an append-only, hash-chained JSONL log by `ledger.py`. It is **off unless `MCP_RECEIPT_LOG` is set**, and a logging failure is swallowed rather than raised — a search matters more than the record of it. Secrets are redacted before a line is composed.
+Every envelope can be deposited to an append-only, hash-chained JSONL log by `ledger.py`. It is **off unless `MCP_RECEIPT_DIR` (or the legacy `MCP_RECEIPT_LOG`) is set**, and a logging failure is swallowed rather than raised — a search matters more than the record of it. Secrets are redacted before a line is composed.
 
 Since schema 2.3.0 the envelope says so. When a response is not deposited, `emit()` appends `RECEIPT_NOT_DEPOSITED` if the variable is unset, or `RECEIPT_WRITE_FAILED` if it is set and the write did not land. The gap is then visible in the artefact that becomes the record, rather than only in a configuration file. `mediation.deposit_enabled()` reports the same fact on demand.
 
 ```
-MCP_RECEIPT_LOG=C:\path\to\receipts.jsonl
+MCP_RECEIPT_DIR=C:\path\to\receipts        # a folder, not a file
 MCP_RECEIPT_SESSION=project-or-article-slug
-MCP_RECEIPT_STRICT=1        # optional: make logging failure raise
+MCP_RECEIPT_STRICT=1                         # optional: make logging failure raise
+MCP_RECEIPT_LOG=C:\path\to\receipts.jsonl  # legacy single file; ignored when _DIR is set
 ```
 
-Verify a deposited log's hash chain:
+**A folder, and one file per server.** `MCP_RECEIPT_DIR` points at a directory
+and each server writes its own `<server>.jsonl` inside it. That is not tidiness.
+Appending is read-the-last-hash-then-write, and the lock around it is a threading
+lock, which holds within one process and not between several — six servers are
+six processes, and two answering at the same moment will both read the same
+predecessor and both claim it. Measured, not theorised: six processes writing 150
+lines to one file produced fourteen forks. `MCP_RECEIPT_LOG` still works and is
+still correct for a single server; it is the wrong shape for a family.
+
+`install.ps1` sets this up for all six and writes a README into the folder.
+
+Verify one chain, or the whole folder:
 
 ```bash
-python ledger.py verify receipts.jsonl
+jstage-mcp-ledger verify      receipts/jstage.jsonl
+jstage-mcp-ledger verify-dir  receipts
+jstage-mcp-ledger manifest    receipts        # writes receipts/manifest.json
 ```
 
-## Install (Windows, alongside CiNii / OpenAlex / Semantic Scholar)
+`verify` exits non-zero on failure and says which kind it found: a **fork**
+(concurrent writers — a configuration fault, and every line is still there), a
+**missing** line, a **reordering**, or **tamper** (a line that does not hash to
+its own content). Only the last is a claim about honesty, and reporting them
+alike would invite a reader to mistake one for the other. The manifest is the
+object to cite: one description of the whole deposit — per-file line counts,
+first and last timestamps, terminal hashes, and combined totals by server,
+script and session.
 
-The server is single-file and has only three runtime dependencies. Use a dedicated virtual environment so it doesn't collide with other MCP stacks.
+## Install
+
+The package installs a `jstage-mcp` console script. It is namespaced, so it can
+share one environment with the rest of this server family.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install .
+```
+
+On Windows:
 
 ```powershell
-# from the directory containing server.py
 py -3.11 -m venv .venv
-.venv\Scripts\activate
-pip install -e .
+.venv\Scripts\pip.exe install .
 ```
 
-Verify the server boots:
+Or straight from the repository, without cloning:
+
+```bash
+uvx --from "git+https://github.com/ckgerteis/jstage-mcp" jstage-mcp
+```
+
+Verify the install:
+
+```bash
+.venv/bin/python -c "import jstage_mcp; print(jstage_mcp.__version__)"
+```
+
+That fails loudly if the package or one of its vendored modules is missing. Do
+not use `jstage-mcp --help` as the check: unknown arguments are ignored, the
+server starts, reads end-of-input and exits 0, so it reports success whatever
+the state of the code.
+
+### Installing more than this one
+
+Six independent packages. None imports another, none depends on another, and
+each installs and answers on its own — `pip install .` in this directory is a
+complete install of this server and nothing else.
+
+They do share three things: a response envelope, a query ledger, and — if you
+run more than one — a receipts folder. `install.ps1` is vendored byte-identical
+into all six and handles that. **It installs this server by default**, because
+cloning one repository is not a request for five more.
 
 ```powershell
-.venv\Scripts\python.exe server.py --help
+.\install.ps1                        # this server
+.\install.ps1 -All                   # all six
+.\install.ps1 -Servers jstage,cinii        # a chosen subset
 ```
+
+Whatever subset you name is registered against one receipts folder, asked for
+once. The script prefers a sibling checkout to the network, carries across
+credentials already registered rather than asking again, leaves servers it was
+not asked about alone, and stops rather than guessing where the servers already
+registered disagree about the folder or the session slug. It also asserts that
+`ledger.py` and `mediation.py` are byte-identical across everything it
+installed, so two envelope versions cannot end up in one environment unnoticed.
 
 ## Claude Desktop configuration
 
-Add an entry to `%APPDATA%\Claude\claude_desktop_config.json` under `mcpServers`. Adjust the absolute paths to match your install location.
+Add an entry to `%APPDATA%\Claude\claude_desktop_config.json` under
+`mcpServers`, pointing at the console script in the environment you installed
+into. On macOS or Linux use the absolute path to `.venv/bin/jstage-mcp`.
 
 ```json
 {
   "mcpServers": {
     "jstage": {
-      "command": "C:\\path\\to\\jstage-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["C:\\path\\to\\jstage-mcp\\server.py"]
+      "command": "C:\\path\\to\\.venv\\Scripts\\jstage-mcp.exe"
     }
   }
 }
 ```
 
-Restart Claude Desktop. The four tools should appear under "jstage" in the tool list.
+**Changed in 3.0.0.** Earlier versions were registered by path —
+`"command": "…\\python.exe", "args": ["…\\server.py"]`. That entry will not
+start this version, because `server.py` is now a module inside a package rather
+than a script beside its imports. Replace it with the console script above.
+
+Restart Claude Desktop. The three tools should appear under "jstage" in the
+tool list.
 
 ## Rate limiting
 
@@ -108,7 +179,7 @@ The server enforces a one-second minimum interval between outbound requests in l
 
 ## Limitations
 
-- **`jstage_search_journals` runs against a fallback.** J-STAGE announced a journal-search endpoint (`service=4`) on 26 March 2026, but the public API currently rejects that service code with `ERR_004`. The tool probes `service=4` first and, on failure, falls back to `service=2` (volume search) with results deduplicated by journal. When JST activates `service=4`, the tool will use it natively without a contract change.
+- **There is no journal-search tool.** `jstage_search_journals` existed in v1.x and was removed in v2.0.0. J-STAGE announced a journal-search endpoint (`service=4`) on 26 March 2026 and the public API still rejects that service code with `ERR_004`; a tool that silently falls back to volume search is not a journal search, and this server would rather not offer one. Until JST activates `service=4`, use `jstage_list_issues` against a known title, ISSN or `cdjournal`.
 - **`jstage_get_article_by_doi` requires J-STAGE-issued DOIs.** The WebAPI does not expose a `doi=` query parameter. The tool decomposes DOIs that follow J-STAGE's pattern (`10.<registrant>/<cdjournal>.<vol>.<no>_<page>`) into `cdjournal+vol` and matches the result against the response. For DOIs outside that pattern the tool returns the doi.org resolution URL with a note.
 - **Commercial use requires registration.** Per the JST Terms of Use, commercial use needs an application form sent to `contact@jstage.jst.go.jp`. Research and teaching use does not.
 
@@ -119,7 +190,7 @@ Endpoint: `https://api.jstage.jst.go.jp/searchapi/do`
 Service codes used:
 - `service=2` — Volumes/issues
 - `service=3` — Article search
-- `service=4` — Journal search (documented, not yet live)
+- `service=4` — Journal search (documented, rejected with `ERR_004` as of 23 August 2026; not used by any tool)
 
 Valid article-search query parameters confirmed against the live API:
 `material, article, author, affil, keyword, abst, text, issn, cdjournal, vol, no, pubyearfrom, pubyearto, start, count`.
