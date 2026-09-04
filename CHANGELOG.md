@@ -7,14 +7,31 @@ the text and, where a version DOI exists, cited by it.
 Releases earlier than those below are on the repository's releases page; this
 file begins where the record is precise enough to be worth writing down.
 
-## 3.0.0 — 2026-08-23
+## 3.0.1 — 2026-09-04
 
-**Not released.** No tag was cut and no Zenodo record exists for this version, so
-it is citable by commit alone. Tagging waits on confirmation that this
-repository's Zenodo webhook is live: a release that mints nothing spends a
-version number and returns nothing citable for it.
+- **An HTTP error status is `API_ERROR`, not `TRANSPORT_ERROR`.** `_error_diag`
+  labelled every `httpx.HTTPStatusError` a transport failure. A 4xx or 5xx is
+  the service answering, and the family's rule (ndl-mcp since 2026-09-04) is
+  that only httpx transport exceptions — timeouts, connection failures — are
+  `TRANSPORT_ERROR`. The reader was told J-STAGE was unreachable when it had
+  replied. Both codes still mean "unknown result, not an absence"; they now
+  mean the right one each. `tests/test_diagnostics.py` pins the mapping.
+- The `SCRIPT_LATIN_QUERY` message said the query matched "romanized/English
+  metadata only". J-STAGE matches `text` against full text, and a Latin-script
+  query reaches English-language articles in full, so the message and the
+  README row now say "Latin-script text and metadata".
+- The MCP SDK's per-request INFO lines no longer reach stderr.
+- CI runs `pytest` as well as the stdio smoke test.
+- The 3.0.0 entry below no longer describes itself as unreleased; it was
+  tagged and released on 2026-09-04, and archived as 10.5281/zenodo.22304331.
 
-### Since 2026-09-04, still under 3.0.0 (unreleased)
+## 3.0.0 — 2026-09-04
+
+Tagged and released on GitHub on 2026-09-04; Zenodo 10.5281/zenodo.22304331. The
+version was first written on 2026-08-23 and held until the release pipeline
+existed.
+
+### Added on 2026-09-04, released with the tag
 
 - **Released on GitHub as a package.** `.github/workflows/release.yml` runs
   on a `vX.Y.Z` tag: tests on three OSes, wheel and sdist, one Claude

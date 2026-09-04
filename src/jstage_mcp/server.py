@@ -1,4 +1,4 @@
-"""J-STAGE MCP server (v3.0.0).
+"""J-STAGE MCP server (v3.0.1).
 
 A FastMCP stdio server exposing the J-STAGE WebAPI
 (https://api.jstage.jst.go.jp/searchapi/do) for searching Japanese
@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import ledger
 from . import mediation as M
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 # httpx logs every request URL at INFO. There is no credential in a J-STAGE
 # request, so nothing leaks — but a search term travels in that URL, and the
@@ -47,6 +47,9 @@ __version__ = "3.0.0"
 for _name in ("httpx", "httpcore", "httpx._client"):
     logging.getLogger(_name).setLevel(logging.WARNING)
     logging.getLogger(_name).propagate = False
+# The MCP SDK logs every request it handles at INFO. Noise, not a leak; still,
+# stderr should carry faults only.
+logging.getLogger("mcp").setLevel(logging.WARNING)
 for _h in list(logging.getLogger().handlers):
     if getattr(_h, "stream", None) is sys.stdout:
         logging.getLogger().removeHandler(_h)
@@ -262,7 +265,7 @@ def _diagnostics(
             M.diag(
                 "warning",
                 "SCRIPT_LATIN_QUERY",
-                f"Query is Latin-script; this matched romanized/English metadata only "
+                f"Query is Latin-script; this matched Latin-script text and metadata only "
                 f"({total} records). The Japanese-script form reaches a different, larger corpus.",
                 "Re-issue in kanji/kana (e.g. 暴走族) to search the Japanese-language literature.",
             )
@@ -298,8 +301,13 @@ def _diagnostics(
 
 
 def _error_diag(exc: Exception) -> dict:
+    """API_ERROR when J-STAGE answered, TRANSPORT_ERROR when it could not be
+    reached. An HTTP error status is an answer: until 3.0.1 it was labelled a
+    transport failure, which told the reader the service was unreachable when
+    it had in fact replied. Only httpx transport exceptions are TRANSPORT_ERROR."""
     if isinstance(exc, httpx.HTTPStatusError):
-        return M.diag("error", "TRANSPORT_ERROR", f"J-STAGE returned HTTP {exc.response.status_code}.", "Retry shortly.")
+        return M.diag("error", "API_ERROR", f"J-STAGE returned HTTP {exc.response.status_code} for this query.",
+                      "Check the parameters; retry once before treating it as an outage. The result is unknown, not empty.")
     if isinstance(exc, httpx.TimeoutException):
         return M.diag("error", "TRANSPORT_ERROR", "Request to J-STAGE timed out.", "Retry shortly.")
     if isinstance(exc, httpx.HTTPError):
@@ -382,7 +390,7 @@ async def jstage_search_articles(params: SearchArticlesInput) -> str:
     loosely, so a high `result.total` is often noisy — read `matching_mode`
     (full_text_broad), `result.breadth`, and the `diagnostics` before treating
     a count as the size of a literature. A `SCRIPT_LATIN_QUERY` diagnostic means
-    the query searched romanized metadata only; re-issue in kanji/kana. The same
+    the query matched Latin-script text and metadata only; re-issue in kanji/kana. The same
     string can return very different totals on CiNii (metadata conjunction).
     """
     normalized, matched_in = _resolve_fields(params)

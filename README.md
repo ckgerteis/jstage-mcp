@@ -42,9 +42,9 @@ Typed and closed. A diagnostic is never prose the client has to parse.
 | --- | --- | --- |
 | `OK` | info | Records returned; nothing to flag. |
 | `BROAD_FULLTEXT` | warning | The match was made on full text, where multi-word terms are matched loosely, so a high `result.total` is often noisy. |
-| `SCRIPT_LATIN_QUERY` | warning | The query was Latin-script, so it matched romanised and English metadata only. Re-issue in kanji or kana. |
+| `SCRIPT_LATIN_QUERY` | warning | The query was Latin-script, so it matched Latin-script text and metadata only (English-language articles and romanised fields), not the Japanese-language corpus. Re-issue in kanji or kana. |
 | `LITERAL_COMPOUND_EMPTY` | warning | No records for this rendering. Try an emic or component term, or an alternative Japanese rendering. |
-| `API_ERROR` | error | The API answered, and answered with an error. |
+| `API_ERROR` | error | The API answered, and answered with an error — including an HTTP error status. The result is unknown, not empty. |
 | `TRANSPORT_ERROR` | error | The request did not complete. Kept distinct from `API_ERROR` because a failed search has an unknown result and must never be written up as an absence. |
 | `RECEIPT_NOT_DEPOSITED` | info | The response was not written to the query ledger, because no receipts destination is configured. The search is unaffected; no receipt survives it. |
 | `RECEIPT_WRITE_FAILED` | warning | A receipts destination is set, the write was attempted, and it did not land. Distinct from the line above because one is a choice and the other is a fault. |
@@ -101,9 +101,9 @@ Download the `.mcpb` for your platform (Windows x64, Apple Silicon, Linux x64; I
 ### From GitHub, pinned to a release
 
 ```bash
-pip install "git+https://github.com/ckgerteis/jstage-mcp@v3.0.0"
+pip install "git+https://github.com/ckgerteis/jstage-mcp@v3.0.1"
 # or, without an environment of your own:
-uvx --from "git+https://github.com/ckgerteis/jstage-mcp@v3.0.0" jstage-mcp
+uvx --from "git+https://github.com/ckgerteis/jstage-mcp@v3.0.1" jstage-mcp
 ```
 
 installs the `jstage-mcp` console script and `jstage-mcp-ledger`. The tag is the thing to cite; `@main` gets whatever is current. Then register it in Claude Desktop (below), or let `install.py` do that.
