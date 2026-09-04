@@ -1,4 +1,4 @@
-"""J-STAGE MCP server (v2.0.0).
+"""J-STAGE MCP server (v3.0.0).
 
 A FastMCP stdio server exposing the J-STAGE WebAPI
 (https://api.jstage.jst.go.jp/searchapi/do) for searching Japanese
@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
+import sys
 import time
 from typing import Any, Optional
 from xml.etree import ElementTree as ET
@@ -37,6 +39,17 @@ from . import ledger
 from . import mediation as M
 
 __version__ = "3.0.0"
+
+# httpx logs every request URL at INFO. There is no credential in a J-STAGE
+# request, so nothing leaks — but a search term travels in that URL, and the
+# line lands on the stderr Claude Desktop captures. Mute it, as the rest of the
+# family does, and keep stdout for JSON-RPC alone.
+for _name in ("httpx", "httpcore", "httpx._client"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
+    logging.getLogger(_name).propagate = False
+for _h in list(logging.getLogger().handlers):
+    if getattr(_h, "stream", None) is sys.stdout:
+        logging.getLogger().removeHandler(_h)
 
 # ---------------------------------------------------------------------------
 # Constants
