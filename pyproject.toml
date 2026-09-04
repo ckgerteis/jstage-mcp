@@ -49,6 +49,7 @@ packages = ["src/jstage_mcp"]
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",
+    "/tests",
     "/README.md",
     "/LICENSE",
     "/CITATION.cff",

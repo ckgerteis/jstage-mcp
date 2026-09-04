@@ -205,6 +205,14 @@ This string is included in every tool response.
 
 If this software supports your research, please cite it. See [`CITATION.cff`](CITATION.cff), or use the "Cite this repository" button on GitHub.
 
+## Tests
+
+```bash
+.venv/bin/python tests/smoke_stdio.py
+```
+
+Starts the installed console script over stdio, performs the MCP handshake, and checks `tools/list` against the tool table above; exits non-zero on a mismatch. `RUN_LIVE=1 … <tool> '<json params>'` adds one live call and reports the envelope's diagnostic codes.
+
 ## License
 
 [MIT](LICENSE) © 2026 Christopher Gerteis.
