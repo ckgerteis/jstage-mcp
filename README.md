@@ -168,7 +168,7 @@ installs the `jstage-mcp` console script and `jstage-mcp-ledger`. The tag is the
 ### The whole family
 
 ```bash
-pip install "git+https://github.com/ckgerteis/bibliograph-mcp@v1.0.1" && bibliograph install
+pip install "git+https://github.com/ckgerteis/bibliograph-mcp@v1.0.2" && bibliograph install
 ```
 
 installs all six servers and registers them together — one receipts folder, credentials asked for once. See [bibliograph-mcp](https://github.com/ckgerteis/bibliograph-mcp). From a checkout of this repository, `python install.py` does the same for this server alone, `python install.py --all` for the six, on Windows, macOS and Linux; `install.ps1` remains for Windows.
