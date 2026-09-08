@@ -1,4 +1,4 @@
-"""J-STAGE MCP server (v3.1.0).
+"""J-STAGE MCP server (v3.1.1).
 
 A FastMCP stdio server exposing the J-STAGE WebAPI
 (https://api.jstage.jst.go.jp/searchapi/do) for searching Japanese
@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import ledger
 from . import mediation as M
 
-__version__ = "3.1.0"
+__version__ = "3.1.1"
 
 # httpx logs every request URL at INFO. There is no credential in a J-STAGE
 # request, so nothing leaks — but a search term travels in that URL, and the
