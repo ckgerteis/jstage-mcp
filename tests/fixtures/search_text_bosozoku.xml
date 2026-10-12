@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed  xmlns="http://www.w3.org/2005/Atom"
+  xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/"
+  xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
+  xml:lang="ja" > 
+  <result>
+    <status>0</status>
+    <message/>
+  </result>
+  <title>Articles</title>
+  <link href="https://api.jstage.jst.go.jp/searchapi/do?service=3&amp;text=%E6%9A%B4%E8%B5%B0%E6%97%8F&amp;count=2"/>
+  <id>https://api.jstage.jst.go.jp/searchapi/do?service=3&amp;text=%E6%9A%B4%E8%B5%B0%E6%97%8F&amp;count=2</id>
+  <servicecd>3</servicecd>
+  <updated>2026-10-12T20:59+09:00</updated>
+  <opensearch:totalResults>593</opensearch:totalResults>
+  <opensearch:startIndex>1</opensearch:startIndex>
+  <opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+  <entry>
+    <article_title>
+      <en/>
+      <ja><![CDATA[『ヤンキーと地元』のエスノグラフィック・イマジネーションと未完の第二部]]></ja>
+    </article_title>
+    <article_link>
+      <en>https://www.jstage.jst.go.jp/article/istd/17/0/17_19/_article</en>
+      <ja>https://www.jstage.jst.go.jp/article/istd/17/0/17_19/_article/-char/ja/</ja>
+    </article_link>
+    <author>
+      <en>
+        <name><![CDATA[YAMAKITA Teruhiro]]></name>
+      </en>
+      <ja>
+        <name><![CDATA[山北 輝裕]]></name>
+      </ja>
+    </author>
+    <cdjournal>istd</cdjournal>
+    <material_title>
+      <en><![CDATA[Social Theory and Dynamics]]></en>
+      <ja><![CDATA[理論と動態]]></ja>
+    </material_title>
+    <prism:issn>2185-4432</prism:issn>
+    <prism:eIssn>2436-746X</prism:eIssn>
+    <prism:volume>17</prism:volume>
+    <prism:number>0</prism:number>
+    <prism:startingPage>188</prism:startingPage>
+    <prism:endingPage>200</prism:endingPage>
+    <pubyear>2025</pubyear>
+    <prism:doi>10.51112/istd.17.0_188</prism:doi>
+    <systemcode>1</systemcode>
+    <systemname>J-STAGE</systemname>
+    <title><![CDATA[『ヤンキーと地元』のエスノグラフィック・イマジネーションと未完の第二部]]></title>
+    <link href="https://www.jstage.jst.go.jp/article/istd/17/0/17_19/_article/-char/ja/"/>
+    <id>https://www.jstage.jst.go.jp/article/istd/17/0/17_19/_article/-char/ja/</id>
+    <updated>2026-07-24T09:00+09:00</updated>
+  </entry>
+  <entry>
+    <article_title>
+      <en><![CDATA[Okinawan Yankee Sub-cultures]]></en>
+      <ja><![CDATA[オキナワン・ヤンキー・サブカルチャーズ]]></ja>
+    </article_title>
+    <article_link>
+      <en>https://www.jstage.jst.go.jp/article/istd/5/0/5_07/_article</en>
+      <ja>https://www.jstage.jst.go.jp/article/istd/5/0/5_07/_article/-char/ja/</ja>
+    </article_link>
+    <author>
+      <en>
+        <name><![CDATA[Masayuki UCHIKOSHI]]></name>
+      </en>
+      <ja>
+        <name><![CDATA[打越 正行]]></name>
+      </ja>
+    </author>
+    <cdjournal>istd</cdjournal>
+    <material_title>
+      <en><![CDATA[Social Theory and Dynamics]]></en>
+      <ja><![CDATA[理論と動態]]></ja>
+    </material_title>
+    <prism:issn>2185-4432</prism:issn>
+    <prism:eIssn>2436-746X</prism:eIssn>
+    <prism:volume>5</prism:volume>
+    <prism:number>0</prism:number>
+    <prism:startingPage>112</prism:startingPage>
+    <prism:endingPage>127</prism:endingPage>
+    <pubyear>2012</pubyear>
+    <prism:doi>10.51112/istd.5.0_112</prism:doi>
+    <systemcode>1</systemcode>
+    <systemname>J-STAGE</systemname>
+    <title><![CDATA[オキナワン・ヤンキー・サブカルチャーズ]]></title>
+    <link href="https://www.jstage.jst.go.jp/article/istd/5/0/5_07/_article/-char/ja/"/>
+    <id>https://www.jstage.jst.go.jp/article/istd/5/0/5_07/_article/-char/ja/</id>
+    <updated>2026-01-08T09:00+09:00</updated>
+  </entry>
+</feed>
