@@ -167,6 +167,13 @@ def _authors(entry: ET.Element) -> list[dict[str, Optional[str]]]:
 
 def _check_status(root: ET.Element) -> Optional[dict[str, Any]]:
     """Return None on success; a warning dict for WARN_*; raise ValueError on error."""
+    # A maintenance page served with status 200 is still well-formed XML. Not
+    # checked, it parsed as a feed with no entries: an outage reported as an
+    # empty literature, with a hint to try another rendering.
+    if root.tag != f"{{{NS['atom']}}}feed":
+        raise ValueError(
+            f"NOT_A_FEED|J-STAGE answered, but not with an Atom feed (root <{root.tag}>). "
+            "The search was not answered; this is not an empty result.")
     result = root.find("atom:result", NS)
     if result is None:
         return None
