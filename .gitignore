@@ -19,6 +19,8 @@ env/
 
 # Cached API responses / data
 *.xml
+# ...but not the responses captured on purpose as test fixtures
+!tests/fixtures/*.xml
 cache/
 data/
 
