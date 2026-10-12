@@ -7,6 +7,31 @@ the text and, where a version DOI exists, cited by it.
 Releases earlier than those below are on the repository's releases page; this
 file begins where the record is precise enough to be worth writing down.
 
+## 3.1.3 — 2026-10-12
+
+**Maintenance release from the stress test of 12 October 2026.** No tool was
+added or removed and no parameter changed meaning. Results that were wrong
+before are right now, or are reported as errors instead of as absences.
+
+- **A 200 that is not the protocol is an error, not zero results.** An HTML
+  maintenance page, a bare error object or an empty body served with status
+  200 used to parse as a valid empty answer and came back as a zero-results
+  diagnostic, which reads as an absence in the literature. It is now reported
+  as an error.
+- **Lone surrogates are replaced before anything reaches the wire.** A lone
+  UTF-16 surrogate in an argument or an upstream record made the receipt or
+  the JSON-RPC reply unencodable; over stdio the client could wait forever.
+- **The ledger refuses to append after an unreadable last line.** A torn
+  final line (a crash mid-write) was silently skipped and the hash chain
+  continued from the line before it, so the break was hidden.
+- **Python.** CI now tests 3.11 as well; `requires-python` is capped below
+  3.15 until 3.15 has been tested.
+- **Packaging.** `set_version.py` and `tests/test_release_metadata.py` are
+  checked against the family's hashes in `VENDORED.sha256`.
+- **DOI lookup pages through the volume.** A DOI past the first 100 articles
+  of its volume was reported as not found; lookup now reads up to five pages.
+- **A stray character in a publication year no longer sinks the page.**
+
 ## 3.1.2 — 2026-09-12
 
 **The bundle's environment is built when it is installed, not during the first
