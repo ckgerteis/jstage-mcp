@@ -88,6 +88,11 @@ NS = {
     "opensearch": "http://a9.com/-/spec/opensearch/1.1/",
 }
 
+# A DOI lookup pages through the volume 100 entries at a time. Capped so that
+# one lookup is never a bulk download: past the cap the envelope says how far
+# it looked instead of reporting the DOI absent.
+DOI_LOOKUP_MAX_PAGES = 5
+
 JSTAGE_DOI_RE = re.compile(
     r"^10\.\d+/(?P<cdjournal>[A-Za-z][A-Za-z0-9]*)"
     r"\.(?P<vol>\d+)\.(?P<no>\d+)_(?P<page>\d+)$"
@@ -199,7 +204,9 @@ def _entry_to_item(entry: ET.Element, matched_in: str) -> dict[str, Any]:
     pe = _text(entry.find("prism:endingPage", NS))
     pages = f"{ps}-{pe}" if ps and pe else (ps or None)
     pubyear = _text(entry.find("atom:pubyear", NS))
-    year = int(pubyear) if pubyear and pubyear.isdigit() else None
+    # isdecimal, not isdigit: '²' is a digit but not a decimal, and int()
+    # rejects it; one such year used to turn the whole page into API_ERROR.
+    year = int(pubyear) if pubyear and pubyear.isdecimal() else None
     return M.make_item(
         title_ja=title["ja"],
         title_en=title["en"],
@@ -458,23 +465,37 @@ async def jstage_get_article_by_doi(params: GetArticleByDoiInput) -> str:
         )
         return M.emit(env)
 
+    # The volume is read a page at a time until the DOI turns up, the volume
+    # ends, or the cap is reached. One page used to be read and an article
+    # past the hundredth was reported as not matching.
+    hit, api_error, start, vol_total = [], None, 1, 0
     try:
-        xml_text = await _get({"service": 3, "cdjournal": match.group("cdjournal"), "vol": match.group("vol"), "count": 100})
-        _meta_, items, _warn = _parse_articles(xml_text, "metadata")
-        api_error = None
+        for _ in range(DOI_LOOKUP_MAX_PAGES):
+            xml_text = await _get({"service": 3, "cdjournal": match.group("cdjournal"),
+                                   "vol": match.group("vol"), "count": 100, "start": start})
+            meta, items, _warn = _parse_articles(xml_text, "metadata")
+            vol_total = meta["total"]
+            hit = [it for it in items if (it["ids"]["doi"] or "").strip() == doi]
+            start += 100
+            if hit or start > vol_total:
+                break
     except Exception as exc:  # noqa: BLE001
-        items, api_error = [], _error_diag(exc)
+        api_error = _error_diag(exc)
 
-    hit = [it for it in items if (it["ids"]["doi"] or "").strip() == doi]
     if hit:
         diags = [M.diag("info", "OK", "Resolved to one article record.", None)]
         env_items, total = hit[:1], 1
     elif api_error:
         diags, env_items, total = [api_error], [], 0
     else:
+        where = (f"cdjournal='{match.group('cdjournal')}', vol='{match.group('vol')}'")
+        if start > vol_total:
+            said = f"none of the volume's {vol_total} entries matched exactly."
+        else:
+            said = (f"the first {start - 1} of the volume's {vol_total} entries were checked "
+                    "(the lookup is capped) and none matched exactly.")
         diags = [M.diag("warning", "LITERAL_COMPOUND_EMPTY",
-            f"Decomposed the DOI to cdjournal='{match.group('cdjournal')}', vol='{match.group('vol')}', "
-            "but no entry matched exactly.", f"Resolve via https://doi.org/{doi}.")]
+            f"Decomposed the DOI to {where}; {said}", f"Resolve via https://doi.org/{doi}.")]
         env_items, total = [], 0
 
     env = M.build_envelope(
