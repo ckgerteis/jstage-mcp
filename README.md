@@ -79,6 +79,7 @@ Typed and closed. A diagnostic is never prose the client has to parse.
 | `BROAD_FULLTEXT` | warning | The match was made on full text, where multi-word terms are matched loosely, so a high `result.total` is often noisy. |
 | `SCRIPT_LATIN_QUERY` | warning | The query was Latin-script, so it matched Latin-script text and metadata only (English-language articles and romanised fields), not the Japanese-language corpus. Re-issue in kanji or kana. |
 | `LITERAL_COMPOUND_EMPTY` | warning | No records for this rendering. Try an emic or component term, or an alternative Japanese rendering. |
+| `RECORD_UNREADABLE` | warning | One or more entries in the feed could not be read. They are left out and named by position and DOI; the other entries are complete. A malformed entry is not an absent one, and a DOI lookup that skipped an entry does not claim the DOI is absent. |
 | `API_ERROR` | error | The API answered, and answered with an error — including an HTTP error status. The result is unknown, not empty. |
 | `TRANSPORT_ERROR` | error | The request did not complete. Kept distinct from `API_ERROR` because a failed search has an unknown result and must never be written up as an absence. |
 | `RECEIPT_NOT_DEPOSITED` | info | The response was not written to the query ledger, because no receipts destination is configured. The search is unaffected; no receipt survives it. |

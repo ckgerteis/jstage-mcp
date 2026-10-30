@@ -7,6 +7,19 @@ the text and, where a version DOI exists, cited by it.
 Releases earlier than those below are on the repository's releases page; this
 file begins where the record is precise enough to be worth writing down.
 
+## Unreleased (proposed 3.1.4)
+
+- **One unreadable entry no longer fails the page.** The feed was built in one
+  pass, so a single entry that raised turned the whole page into `API_ERROR`.
+  Such an entry is now left out and named by position and DOI under the new
+  warning `RECORD_UNREADABLE`, as the other servers have done since 3.1.3's
+  sibling releases; a page of only unreadable entries is not reported as
+  `LITERAL_COMPOUND_EMPTY`, and a DOI lookup that skipped an entry says the DOI
+  may be among them rather than claiming it absent.
+- **Count fields that are not counts** (a 5,000-digit `totalResults`, which
+  `int()` refuses on Python 3.11+, or a non-decimal one) no longer sink the
+  page; an implausible `pubyear` is dropped rather than fatal.
+
 ## 3.1.3 — 2026-10-12
 
 **Maintenance release from the stress test of 12 October 2026.** No tool was

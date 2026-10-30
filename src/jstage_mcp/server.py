@@ -196,10 +196,21 @@ def _check_status(root: ET.Element) -> Optional[dict[str, Any]]:
     raise ValueError(f"{status}|{detail}")
 
 
+def _int_or(v: Optional[str], default: int) -> int:
+    """A count from the feed, or `default`. int() of a 5,000-digit string
+    raises on Python 3.11+, and a non-decimal one always did; either took the
+    whole page with it."""
+    try:
+        n = int(v) if v and v.strip().isdecimal() else default
+    except ValueError:
+        return default
+    return n if n >= 0 else default
+
+
 def _meta(root: ET.Element) -> dict[str, Any]:
     return {
-        "total": int(_text(root.find("opensearch:totalResults", NS)) or 0),
-        "start": int(_text(root.find("opensearch:startIndex", NS)) or 1) or 1,
+        "total": _int_or(_text(root.find("opensearch:totalResults", NS)), 0),
+        "start": _int_or(_text(root.find("opensearch:startIndex", NS)), 1) or 1,
     }
 
 
@@ -213,7 +224,8 @@ def _entry_to_item(entry: ET.Element, matched_in: str) -> dict[str, Any]:
     pubyear = _text(entry.find("atom:pubyear", NS))
     # isdecimal, not isdigit: '²' is a digit but not a decimal, and int()
     # rejects it; one such year used to turn the whole page into API_ERROR.
-    year = int(pubyear) if pubyear and pubyear.isdecimal() else None
+    year = _int_or(pubyear, -1) if pubyear and pubyear.isdecimal() and len(pubyear) <= 4 else None
+    year = None if year == -1 else year
     return M.make_item(
         title_ja=title["ja"],
         title_en=title["en"],
@@ -233,13 +245,40 @@ def _entry_to_item(entry: ET.Element, matched_in: str) -> dict[str, Any]:
 
 
 def _parse_articles(xml_text: str, matched_in: str) -> tuple[dict[str, Any], list[dict], Optional[dict]]:
+    """(meta, items, warning). An entry that will not build is left out and
+    named in meta["unreadable"] by position and DOI, so one bad entry no longer
+    turns the whole page into API_ERROR (the RECORD_UNREADABLE repair of 12 Oct
+    2026, which reached the other servers but not this one)."""
     root = ET.fromstring(xml_text)
     warning = _check_status(root)  # raises on hard error
     meta = _meta(root)
-    items = [_entry_to_item(e, matched_in) for e in root.findall("atom:entry", NS)]
+    items, bad = [], []
+    for pos, e in enumerate(root.findall("atom:entry", NS), 1):
+        try:
+            items.append(_entry_to_item(e, matched_in))
+        except Exception:  # noqa: BLE001 - one entry must not cost the page
+            try:
+                doi = _text(e.find("prism:doi", NS))
+            except Exception:  # noqa: BLE001
+                doi = None
+            bad.append(f"#{pos}" + (f" ({doi[:100]})" if doi else ""))
     # strip the single empty <entry/> the API returns on zero hits
     items = [it for it in items if it["title"]["ja"] or it["title"]["en"] or it["ids"]["doi"]]
+    meta["unreadable"] = bad
     return meta, items, warning
+
+
+def _unreadable_diag(bad: list[str], seen: int) -> Optional[dict]:
+    if not bad:
+        return None
+    named = "; ".join(bad[:10]) + ("; and more" if len(bad) > 10 else "")
+    return M.diag(
+        "warning", "RECORD_UNREADABLE",
+        f"{len(bad)} of {seen} entr{'y' if seen == 1 else 'ies'} in J-STAGE's response could not be "
+        f"read and were left out: {named}.",
+        "The upstream entry is malformed, not absent. The other entries are complete; "
+        "look the omitted ones up by DOI or retry later.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -417,13 +456,20 @@ async def jstage_search_articles(params: SearchArticlesInput) -> str:
         xml_text = await _get(api_params)
         meta, items, warning = _parse_articles(xml_text, matched_in)
         total, start = meta["total"], meta["start"]
+        bad = meta["unreadable"]
         api_error = None
     except Exception as exc:  # noqa: BLE001
-        items, warning, total, start = [], None, 0, params.start
+        items, warning, total, start, bad = [], None, 0, params.start, []
         api_error = _error_diag(exc)
 
     breadth = M.classify_breadth(total)
     diags = _diagnostics(total=total, breadth=breadth, script=script, api_warning=warning, api_error=api_error)
+    unreadable = _unreadable_diag(bad, len(bad) + len(items))
+    if unreadable:
+        # A page of only unreadable entries is not an empty literature.
+        if not items:
+            diags = [d for d in diags if d["code"] != "LITERAL_COMPOUND_EMPTY"]
+        diags.insert(0, unreadable)
     coverage = COVERAGE_NOTE if (total == 0 or breadth == "narrow") else None
 
     env = M.build_envelope(
@@ -475,12 +521,13 @@ async def jstage_get_article_by_doi(params: GetArticleByDoiInput) -> str:
     # The volume is read a page at a time until the DOI turns up, the volume
     # ends, or the cap is reached. One page used to be read and an article
     # past the hundredth was reported as not matching.
-    hit, api_error, start, vol_total = [], None, 1, 0
+    hit, api_error, start, vol_total, skipped = [], None, 1, 0, []
     try:
         for _ in range(DOI_LOOKUP_MAX_PAGES):
             xml_text = await _get({"service": 3, "cdjournal": match.group("cdjournal"),
                                    "vol": match.group("vol"), "count": 100, "start": start})
             meta, items, _warn = _parse_articles(xml_text, "metadata")
+            skipped += meta["unreadable"]
             vol_total = meta["total"]
             hit = [it for it in items if (it["ids"]["doi"] or "").strip() == doi]
             start += 100
@@ -503,6 +550,13 @@ async def jstage_get_article_by_doi(params: GetArticleByDoiInput) -> str:
                     "(the lookup is capped) and none matched exactly.")
         diags = [M.diag("warning", "LITERAL_COMPOUND_EMPTY",
             f"Decomposed the DOI to {where}; {said}", f"Resolve via https://doi.org/{doi}.")]
+        if skipped:
+            # An unreadable entry may be the one asked for: the absence is not established.
+            diags.insert(0, M.diag(
+                "warning", "RECORD_UNREADABLE",
+                f"{len(skipped)} entr{'y' if len(skipped) == 1 else 'ies'} of the volume could not be read "
+                f"({'; '.join(skipped[:10])}); the DOI may be among them.",
+                f"Resolve via https://doi.org/{doi}."))
         env_items, total = [], 0
 
     env = M.build_envelope(
