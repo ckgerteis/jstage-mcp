@@ -7,7 +7,7 @@ the text and, where a version DOI exists, cited by it.
 Releases earlier than those below are on the repository's releases page; this
 file begins where the record is precise enough to be worth writing down.
 
-## Unreleased (proposed 3.1.4)
+## 3.1.4 — 2026-10-30
 
 - **One unreadable entry no longer fails the page.** The feed was built in one
   pass, so a single entry that raised turned the whole page into `API_ERROR`.
