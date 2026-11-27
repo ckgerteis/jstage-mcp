@@ -38,7 +38,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import ledger
 from . import mediation as M
 
-__version__ = "3.1.4"
+__version__ = "3.1.5"
+M.SERVER_VERSION = __version__
 
 # httpx logs every request URL at INFO. There is no credential in a J-STAGE
 # request, so nothing leaks — but a search term travels in that URL, and the
