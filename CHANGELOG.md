@@ -7,6 +7,17 @@ the text and, where a version DOI exists, cited by it.
 Releases earlier than those below are on the repository's releases page; this
 file begins where the record is precise enough to be worth writing down.
 
+## 3.1.5 — 2026-11-27
+
+**Every receipt names the server release that issued it.** `receipt.server_version`
+(response schema 2.4.0) carries this package's `__version__`, so a saved
+receipt says which release produced it without anyone having to reconstruct
+what was installed on the day. It is outside the query hash: a hash issued
+under an earlier release still matches the same query under this one.
+`mediation.py` and `response-schema.json` change together and stay
+byte-identical across cinii-mcp, jstage-mcp and ndl-mcp; the other servers of
+the family are still on schema 2.3.0 until they take the same change.
+
 ## 3.1.4 — 2026-10-30
 
 - **One unreadable entry no longer fails the page.** The feed was built in one
